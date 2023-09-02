@@ -1,2 +1,9 @@
 # genetic-algorithm-pytorch
-Toy genetic algorithm in pytorch
+
+a simple genetic algorithm written in Pytorch
+
+## running
+
+```bash
+$ python ga.py
+```
