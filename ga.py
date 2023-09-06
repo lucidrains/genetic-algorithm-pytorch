@@ -3,9 +3,11 @@ import torch
 # constants
 
 GOAL = 'Attention is all you need'
-POP_SIZE = 25
-MUTATION_RATE = 0.05
-FRAC_FITTEST_SURVIVE = 0.1
+
+POP_SIZE = 100
+MUTATION_RATE = 0.04
+FRAC_FITTEST_SURVIVE = 0.25
+FRAC_TOURNAMENT = 0.25
 
 # encode and decode functions
 
@@ -22,8 +24,11 @@ gene_midpoint = gene_length // 2
 target_gene = encode(GOAL)
 
 keep_fittest_len = int(POP_SIZE * FRAC_FITTEST_SURVIVE)
+num_tournament_contenders = int(keep_fittest_len * FRAC_TOURNAMENT)
 num_children = POP_SIZE - keep_fittest_len
 num_mutate = MUTATION_RATE * gene_length
+
+assert num_tournament_contenders >= 2
 
 # genetic algorithm
 
@@ -42,6 +47,10 @@ while True:
     indices = costs.sort().indices
     pool, costs = pool[indices], costs[indices]
 
+    # keep the fittest
+
+    pool, costs = pool[:keep_fittest_len], costs[:keep_fittest_len]
+
     # display every generation
 
     for gene, cost in zip(pool, costs):
@@ -52,15 +61,17 @@ while True:
     if (costs == 0).any():
         break
 
-    # keep the fittest
+    # deterministic tournament selection - let top 2 winners become parents
 
-    pool, costs = pool[:keep_fittest_len], costs[:keep_fittest_len]
+    contender_ids = torch.randn((num_children, keep_fittest_len)).argsort(dim = -1)[..., :num_tournament_contenders]
+    participants, tournaments = pool[contender_ids], costs[contender_ids]
+    top2_winners = tournaments.topk(2, dim = -1, largest = False, sorted = False).indices
+    top2_winners = top2_winners.unsqueeze(-1).expand(-1, -1, gene_length)
+    parents = participants.gather(1, top2_winners)
 
-    # cross over recombination of fittest
+    # cross over recombination of parents
 
-    rand_parents = torch.randn((num_children, keep_fittest_len)).argsort(dim = -1)[..., :2]
-    parent1_indices, parent2_indices = rand_parents.unbind(dim = -1)
-    parent1, parent2 = pool[parent1_indices], pool[parent2_indices]
+    parent1, parent2 = parents.unbind(dim = 1)
     children = torch.cat((parent1[:, :gene_midpoint], parent2[:, gene_midpoint:]), dim = -1)
 
     pool = torch.cat((pool, children), dim = 0)
