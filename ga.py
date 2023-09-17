@@ -8,6 +8,7 @@ POP_SIZE = 100
 MUTATION_RATE = 0.04
 FRAC_FITTEST_SURVIVE = 0.25
 FRAC_TOURNAMENT = 0.25
+ELITE_FRAC = 0.05
 
 # encode and decode functions
 
@@ -24,7 +25,9 @@ gene_midpoint = gene_length // 2
 target_gene = encode(GOAL)
 
 keep_fittest_len = int(POP_SIZE * FRAC_FITTEST_SURVIVE)
-num_tournament_contenders = int(keep_fittest_len * FRAC_TOURNAMENT)
+num_elite = int(ELITE_FRAC * POP_SIZE)
+num_repro_and_mutate = keep_fittest_len - num_elite
+num_tournament_contenders = int(num_repro_and_mutate * FRAC_TOURNAMENT)
 num_children = POP_SIZE - keep_fittest_len
 num_mutate = MUTATION_RATE * gene_length
 
@@ -34,8 +37,7 @@ assert num_tournament_contenders >= 2
 
 generation = 1
 
-pool_shape = (POP_SIZE, gene_length)
-pool = torch.randint(0, 255, pool_shape)
+pool = torch.randint(0, 255, (POP_SIZE, gene_length))
 
 while True:
     print(f"\n\ngeneration {generation}\n")
@@ -61,9 +63,14 @@ while True:
     if (costs == 0).any():
         break
 
+    # elites can pass directly to next generation
+
+    elites, pool = pool[:num_elite], pool[num_elite:]
+    elites_costs, costs = costs[:num_elite], costs[num_elite:]
+
     # deterministic tournament selection - let top 2 winners become parents
 
-    contender_ids = torch.randn((num_children, keep_fittest_len)).argsort(dim = -1)[..., :num_tournament_contenders]
+    contender_ids = torch.randn((num_children, num_repro_and_mutate)).argsort(dim = -1)[..., :num_tournament_contenders]
     participants, tournaments = pool[contender_ids], costs[contender_ids]
     top2_winners = tournaments.topk(2, dim = -1, largest = False, sorted = False).indices
     top2_winners = top2_winners.unsqueeze(-1).expand(-1, -1, gene_length)
@@ -74,13 +81,17 @@ while True:
     parent1, parent2 = parents.unbind(dim = 1)
     children = torch.cat((parent1[:, :gene_midpoint], parent2[:, gene_midpoint:]), dim = -1)
 
-    pool = torch.cat((pool, children), dim = 0)
+    pool = torch.cat((pool, children))
 
     # mutate genes in population
 
-    mutate_mask = torch.randn(pool_shape).argsort(dim = -1) < num_mutate
-    noise = torch.randint(0, 2, pool_shape) * 2 - 1
+    mutate_mask = torch.randn(pool.shape).argsort(dim = -1) < num_mutate
+    noise = torch.randint(0, 2, pool.shape) * 2 - 1
     pool = torch.where(mutate_mask, pool + noise, pool)
     pool.clamp_(0, 255)
+
+    # add back the elites
+
+    pool = torch.cat((elites, pool))
 
     generation += 1
