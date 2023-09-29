@@ -41,51 +41,51 @@ generation = 1
 
 pool = torch.randint(0, 255, (POP_SIZE, gene_length))
 
-queen = queen_cost = None
+queen = queen_fitness = None
 
 while True:
     print(f"\n\ngeneration {generation}\n")
 
-    # sort population by fitness (inverse costs)
+    # sort population by fitness
 
-    costs = torch.square(pool - target_gene).sum(dim = -1)
+    fitnesses = 1. / torch.square(pool - target_gene).sum(dim = -1)
 
-    indices = costs.sort().indices
-    pool, costs = pool[indices], costs[indices]
+    indices = fitnesses.sort(descending = True).indices
+    pool, fitnesses = pool[indices], fitnesses[indices]
 
     # display every generation
 
     if queen is not None:
         print("queen:")
-        print(f"{decode(queen)} ({queen_cost.item()})\n")
+        print(f"{decode(queen)} ({queen_fitness.item():.3f})\n")
 
-    for gene, cost in zip(pool, costs):
-        print(f"{decode(gene)} ({cost.item()})")
+    for gene, fitness in zip(pool, fitnesses):
+        print(f"{decode(gene)} ({fitness.item():.3f})")
 
     # solved if any cost is 0
 
-    if (costs == 0).any():
+    if (fitnesses == float('inf')).any():
         break
     
     # if one of the children has a better fitness than queen, that child becomes the new queen
     # and the queen replaces the worst bee in the population, kept around for at least one generation more
 
-    if queen is not None and queen_cost > costs[0]:
+    if queen is not None and queen_fitness < fitnesses[0]:
         pool = torch.cat((pool, queen[None, :]), dim = 0)
-        costs = torch.cat((costs, queen_cost[None]), dim = 0)
-        queen = queen_cost = None
+        fitnesses = torch.cat((fitnesses, queen_fitness[None]), dim = 0)
+        queen = queen_fitness = None
 
     # separate the queen bee from the rest of the population
 
     if queen is None:
         queen, pool = pool[0], pool[1:]
-        queen_cost, costs = costs[0], costs[1:]
+        queen_fitness, fitnesses = fitnesses[0], fitnesses[1:]
 
     # deterministic tournament selection - let top winner become parent with queen
 
     contender_ids = torch.randn((POP_SIZE - 1, POP_SIZE - 1)).argsort(dim = -1)[..., :NUM_TOURNAMENT_PARTICIPANTS]
-    participants, tournaments = pool[contender_ids], costs[contender_ids]
-    top_winner = tournaments.topk(1, dim = -1, largest = False, sorted = False).indices
+    participants, tournaments = pool[contender_ids], fitnesses[contender_ids]
+    top_winner = tournaments.topk(1, dim = -1, largest = True, sorted = False).indices
     top_winner = top_winner.unsqueeze(-1).expand(-1, -1, gene_length)
     parents = participants.gather(1, top_winner).squeeze(1)
 

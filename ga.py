@@ -42,37 +42,37 @@ pool = torch.randint(0, 255, (POP_SIZE, gene_length))
 while True:
     print(f"\n\ngeneration {generation}\n")
 
-    # sort population by fitness (inverse costs)
+    # sort population by fitness
 
-    costs = torch.square(pool - target_gene).sum(dim = -1)
+    fitnesses = 1. / torch.square(pool - target_gene).sum(dim = -1)
 
-    indices = costs.sort().indices
-    pool, costs = pool[indices], costs[indices]
+    indices = fitnesses.sort(descending = True).indices
+    pool, fitnesses = pool[indices], fitnesses[indices]
 
     # keep the fittest
 
-    pool, costs = pool[:keep_fittest_len], costs[:keep_fittest_len]
+    pool, fitnesses = pool[:keep_fittest_len], fitnesses[:keep_fittest_len]
 
     # display every generation
 
-    for gene, cost in zip(pool, costs):
-        print(f"{decode(gene)} ({cost.item()})")
+    for gene, fitness in zip(pool, fitnesses):
+        print(f"{decode(gene)} ({fitness.item():.3f})")
 
-    # solved if any cost is 0
+    # solved if any fitness is inf
 
-    if (costs == 0).any():
+    if (fitnesses == float('inf')).any():
         break
 
     # elites can pass directly to next generation
 
     elites, pool = pool[:num_elite], pool[num_elite:]
-    elites_costs, costs = costs[:num_elite], costs[num_elite:]
+    elites_fitnesses, fitnesses = fitnesses[:num_elite], fitnesses[num_elite:]
 
     # deterministic tournament selection - let top 2 winners become parents
 
     contender_ids = torch.randn((num_children, num_repro_and_mutate)).argsort(dim = -1)[..., :num_tournament_contenders]
-    participants, tournaments = pool[contender_ids], costs[contender_ids]
-    top2_winners = tournaments.topk(2, dim = -1, largest = False, sorted = False).indices
+    participants, tournaments = pool[contender_ids], fitnesses[contender_ids]
+    top2_winners = tournaments.topk(2, dim = -1, largest = True, sorted = False).indices
     top2_winners = top2_winners.unsqueeze(-1).expand(-1, -1, gene_length)
     parents = participants.gather(1, top2_winners)
 
