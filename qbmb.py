@@ -5,6 +5,8 @@ Queen-bee and Mutant-bee evolution for genetic algorithms - Jung 2007
 
 In the new scheme, all the selected bees to mate with the queen undergo strong mutation prior to crossover
 This scheme therefore better preserves the queen's genetic code. He shows through various experiments that this performs just as well as the original algorithm while being simpler
+
+https://www.researchgate.net/publication/290131255_Queen-bee_and_Mutant-bee_Evolution_for_Genetic_Algorithms
 """
 
 import torch

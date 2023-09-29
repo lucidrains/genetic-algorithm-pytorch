@@ -3,6 +3,8 @@ Queen-bee evolution for genetic algorithms - Jung 2003
 
 Inspired by evolution of bees, the fittest solution is designated the "queen", and the rest of the population contends to mate with it. The strong exploitation is balanced by a higher than normal mutation rate.
 For some problems, the paper claims convergence at 2-3 orders of magnitude faster
+
+https://www.researchgate.net/publication/3385719_Queen-bee_evolution_for_genetic_algorithms
 """
 
 import torch

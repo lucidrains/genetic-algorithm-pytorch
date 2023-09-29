@@ -1,3 +1,9 @@
+"""
+Genetic Algorithm - formalized by John H. Holland in 1992, but has been talked about since 1960-70s
+
+https://www.researchgate.net/figure/Hollands-canonical-genetic-algorithm-Holland-1992_fig4_221174380
+"""
+
 import torch
 
 # constants
