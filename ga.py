@@ -5,6 +5,7 @@ https://www.researchgate.net/figure/Hollands-canonical-genetic-algorithm-Holland
 """
 
 import torch
+from einops import repeat
 
 # constants
 
@@ -79,7 +80,7 @@ while True:
     contender_ids = torch.randn((num_children, num_repro_and_mutate)).argsort(dim = -1)[..., :num_tournament_contenders]
     participants, tournaments = pool[contender_ids], fitnesses[contender_ids]
     top2_winners = tournaments.topk(2, dim = -1, largest = True, sorted = False).indices
-    top2_winners = top2_winners.unsqueeze(-1).expand(-1, -1, gene_length)
+    top2_winners = repeat(top2_winners, '... -> ... g', g = gene_length)
     parents = participants.gather(1, top2_winners)
 
     # cross over recombination of parents

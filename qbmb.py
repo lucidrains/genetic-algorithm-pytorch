@@ -10,6 +10,7 @@ https://www.researchgate.net/publication/290131255_Queen-bee_and_Mutant-bee_Evol
 """
 
 import torch
+from einops import repeat
 
 # constants
 
@@ -88,7 +89,7 @@ while True:
     contender_ids = torch.randn((POP_SIZE - 1, POP_SIZE - 1)).argsort(dim = -1)[..., :NUM_TOURNAMENT_PARTICIPANTS]
     participants, tournaments = pool[contender_ids], fitnesses[contender_ids]
     top_winner = tournaments.topk(1, dim = -1, largest = True, sorted = False).indices
-    top_winner = top_winner.unsqueeze(-1).expand(-1, -1, gene_length)
+    top_winner = repeat(top_winner, '... -> ... g', g = gene_length)
     parents = participants.gather(1, top_winner).squeeze(1)
 
     # potential parents with queen is strongly mutated ("Mutant Bee")
@@ -100,7 +101,7 @@ while True:
 
     # cross over all chosen drones with the queen
 
-    queen_parents = queen.unsqueeze(0).expand(POP_SIZE - 1, gene_length)
+    queen_parents = repeat(queen, '... -> p ...', p = POP_SIZE - 1)
     queen_and_parents = torch.stack((queen_parents, mutated_parents), dim = 1)
 
     # in my experiments, the crossover point must be random between queen and drones for this to work

@@ -8,6 +8,7 @@ https://www.researchgate.net/publication/3385719_Queen-bee_evolution_for_genetic
 """
 
 import torch
+from einops import repeat
 
 # constants
 
@@ -88,12 +89,12 @@ while True:
     contender_ids = torch.randn((POP_SIZE - 1, POP_SIZE - 1)).argsort(dim = -1)[..., :NUM_TOURNAMENT_PARTICIPANTS]
     participants, tournaments = pool[contender_ids], fitnesses[contender_ids]
     top_winner = tournaments.topk(1, dim = -1, largest = True, sorted = False).indices
-    top_winner = top_winner.unsqueeze(-1).expand(-1, -1, gene_length)
+    top_winner = repeat(top_winner, '... -> ... g', g = gene_length)
     parents = participants.gather(1, top_winner).squeeze(1)
 
     # cross over all chosen drones with the queen
 
-    queen_parents = queen.unsqueeze(0).expand(POP_SIZE - 1, gene_length)
+    queen_parents = repeat(queen, '... -> p ...', p = POP_SIZE - 1)
     pool = torch.cat((queen_parents[:, :gene_midpoint], parents[:, gene_midpoint:]), dim = -1)
 
     # mutate genes in population
