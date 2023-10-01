@@ -95,6 +95,14 @@ while True:
     # cross over all chosen drones with the queen
 
     queen_parents = repeat(queen, '... -> p ...', p = POP_SIZE - 1)
+    queen_and_parents = torch.stack((queen_parents, parents), dim = 1)
+
+    rand_crossover_order = torch.randn(queen_and_parents.shape[:2]).argsort(dim = -1)
+
+    batch_arange = torch.arange(POP_SIZE - 1)[..., None]
+    queen_and_parents = queen_and_parents[batch_arange, rand_crossover_order]
+    queen_parents, parents = queen_and_parents.unbind(dim = 1)
+
     pool = torch.cat((queen_parents[:, :gene_midpoint], parents[:, gene_midpoint:]), dim = -1)
 
     # mutate genes in population
