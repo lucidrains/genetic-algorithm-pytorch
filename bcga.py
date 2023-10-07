@@ -74,11 +74,6 @@ while True:
 
         for gene, fitness in zip(pool, fitnesses):
             print(f"{decode(gene)} ({fitness.item():.3f})")
-
-    # solved if any fitness is inf
-
-    if (fitnesses == float('inf')).any():
-        break
     
     # if one of the children has a better fitness than queen, that child becomes the new queen
     # and the queen replaces the worst bee in the population, kept around for at least one generation more
@@ -105,6 +100,11 @@ while True:
 
     queens, colonies = colonies[:, 0], colonies[:, 1:]
     queen_fitnesses, colony_fitnesses = colony_fitnesses[:, 0], colony_fitnesses[:, 1:]
+
+    # solved if any fitness is inf
+
+    if (queen_fitnesses == float('inf')).any():
+        break
 
     # deterministic tournament selection - let top winner become parent with queen
 
