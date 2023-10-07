@@ -5,7 +5,7 @@ Here we simulate different colonies to maintain diversity. At each generation, o
 """
 
 import torch
-from einops import repeat
+from einops import repeat, rearrange
 
 # constants
 
@@ -123,14 +123,15 @@ while True:
     mutated_parents = torch.where(strong_mutate_mask, parents + noise, parents)
     mutated_parents.clamp_(0, 255)
 
-    # cross over all chosen drones with the queen
-
-    queen_parents = repeat(queens, 'c ... -> c p ...', p = POP_SIZE - 1)
-
     # do a random 50% genetic code mix instead of contiguous crossover at midpoint
 
-    rand_mix_mask = torch.randn(queen_parents.shape).argsort(dim = -1) < (gene_length // 2)
-    colonies = torch.where(rand_mix_mask, queen_parents, mutated_parents)
+    rand_mix_mask = torch.randn(mutated_parents.shape).argsort(dim = -1) < (gene_length // 2)
+
+    colonies = torch.where(
+        rand_mix_mask,
+        rearrange(queens, 'c ... -> c 1 ...'),
+        mutated_parents
+    )
 
     # mutate genes in population
 
