@@ -36,7 +36,6 @@ def calc_fitness(genes, target):
 # derived constants
 
 gene_length = len(GOAL)
-gene_midpoint = gene_length // 2
 target_gene = encode(GOAL)
 
 num_code_mutate = MUTATION_PROB * gene_length
@@ -127,17 +126,11 @@ while True:
     # cross over all chosen drones with the queen
 
     queen_parents = repeat(queens, 'c ... -> c p ...', p = POP_SIZE - 1)
-    queen_and_parents = torch.stack((queen_parents, mutated_parents), dim = 2)
 
-    # in my experiments, the crossover point must be random between queen and drones for this to work
+    # do a random 50% genetic code mix instead of contiguous crossover at midpoint
 
-    rand_crossover_order = torch.randn(queen_and_parents.shape[:3]).argsort(dim = -1)
-
-    batch_arange = torch.arange(POP_SIZE - 1)[..., None]
-    queen_and_parents = queen_and_parents[colonies_arange_, batch_arange, rand_crossover_order]
-    queen_parents, mutated_parents = queen_and_parents.unbind(dim = 2)
-
-    colonies = torch.cat((queen_parents[..., :gene_midpoint], mutated_parents[..., gene_midpoint:]), dim = -1)
+    rand_mix_mask = torch.randn(queen_parents.shape).argsort(dim = -1) < (gene_length // 2)
+    colonies = torch.where(rand_mix_mask, queen_parents, mutated_parents)
 
     # mutate genes in population
 
