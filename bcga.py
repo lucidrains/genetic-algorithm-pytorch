@@ -11,12 +11,13 @@ from einops import repeat
 
 GOAL = 'Attention is all you need'
 
-COLONIES = 4
-POP_SIZE = 25
-MUTATION_PROB = 0.04
-STRONG_MUTATION_PROB = 0.25
+COLONIES = 10
+POP_SIZE = 250
+MUTATION_PROB = 0.05
+STRONG_MUTATION_PROB = 0.15
 NUM_TOURNAMENT_PARTICIPANTS = 25
-FRAC_BEES_MIGRANTS = 0.25
+MIGRATE_EVERY = 5
+FRAC_BEES_MIGRANTS = 0.1
 
 # encode and decode functions
 
@@ -65,12 +66,12 @@ while True:
 
     # display every generation
 
-    for i, (pool, fitnesses) in enumerate(zip(colonies, colony_fitnesses)):
+    for i, (pool, fitnesses) in enumerate(zip(colonies[:, :10], colony_fitnesses[:, :10])):
         print(f'\ncolony {i + 1}:\n')
 
         if exists(queens):
             queen, queen_fitness = queens[i], queen_fitnesses[i]
-            print(f"{decode(queen)} ({queen_fitness.item():.3f})\n")
+            print(f"Q: {decode(queen)} ({queen_fitness.item():.3f})\n")
 
         for gene, fitness in zip(pool, fitnesses):
             print(f"{decode(gene)} ({fitness.item():.3f})")
@@ -104,6 +105,7 @@ while True:
     # solved if any fitness is inf
 
     if (queen_fitnesses == float('inf')).any():
+        print(f'\nsolved at generation {generation}')
         break
 
     # deterministic tournament selection - let top winner become parent with queen
@@ -147,7 +149,7 @@ while True:
 
     # allow a subset of bees to migrate to adjacent colonies
 
-    if num_bees_migrate > 0:
+    if not (generation % MIGRATE_EVERY) and num_bees_migrate > 0:
         colonies, migrant_colonies = colonies[:, :-num_bees_migrate], colonies[:, -num_bees_migrate:]
         migrant_colonies = torch.roll(migrant_colonies, 1, dims = 0)
         colonies = torch.cat((colonies, migrant_colonies), dim = 1)
