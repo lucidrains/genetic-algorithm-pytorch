@@ -65,7 +65,7 @@ while True:
     for gene, fitness in zip(pool, fitnesses):
         print(f"{decode(gene)} ({fitness.item():.3f})")
 
-    # solved if any cost is 0
+    # solved if any fitness is inf
 
     if (fitnesses == float('inf')).any():
         break

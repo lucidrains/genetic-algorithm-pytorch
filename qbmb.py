@@ -119,8 +119,8 @@ while True:
 
     mutate_mask = torch.randn(pool.shape).argsort(dim = -1) < num_code_mutate
     noise = torch.randint(0, 2, pool.shape) * 2 - 1
-    mutated_pool = torch.where(mutate_mask, pool + noise, pool)
 
+    pool = torch.where(mutate_mask, pool + noise, pool)
     pool.clamp_(0, 255)
 
     # increment generation
