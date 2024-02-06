@@ -5,7 +5,7 @@ Here we simulate different colonies to maintain diversity. At each generation, o
 """
 
 import torch
-from einops import repeat, rearrange
+import einx
 
 # constants
 
@@ -113,8 +113,7 @@ while True:
     contender_ids = torch.randn((COLONIES, POP_SIZE - 1, POP_SIZE - 1)).argsort(dim = -1)[..., :NUM_TOURNAMENT_PARTICIPANTS]
     participants, tournaments = colonies[colonies_arange_, contender_ids], colony_fitnesses[colonies_arange_, contender_ids]
     top_winner = tournaments.topk(1, dim = -1, largest = True, sorted = False).indices
-    top_winner = repeat(top_winner, '... -> ... g', g = gene_length)
-    parents = participants.gather(2, top_winner).squeeze(2)
+    parents = einx.get_at('... [t] g, ... 1 -> ... g', participants, top_winner)
 
     # potential parents with queen is strongly mutated ("Mutant Bee")
 
@@ -127,11 +126,7 @@ while True:
 
     rand_mix_mask = torch.randn(mutated_parents.shape).argsort(dim = -1) < (gene_length // 2)
 
-    colonies = torch.where(
-        rand_mix_mask,
-        rearrange(queens, 'c ... -> c 1 ...'),
-        mutated_parents
-    )
+    colonies = einx.where('c p g, c g, c p g', rand_mix_mask, queens, mutated_parents)
 
     # mutate genes in population
 

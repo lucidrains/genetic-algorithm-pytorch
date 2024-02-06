@@ -1,2 +1,3 @@
 einops
+einx[torch]
 torch

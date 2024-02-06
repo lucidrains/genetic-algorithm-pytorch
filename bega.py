@@ -9,6 +9,7 @@ https://www.researchgate.net/publication/3385719_Queen-bee_evolution_for_genetic
 
 import torch
 from einops import repeat
+from einx import get_at
 
 # constants
 
@@ -89,8 +90,7 @@ while True:
     contender_ids = torch.randn((POP_SIZE - 1, POP_SIZE - 1)).argsort(dim = -1)[..., :NUM_TOURNAMENT_PARTICIPANTS]
     participants, tournaments = pool[contender_ids], fitnesses[contender_ids]
     top_winner = tournaments.topk(1, dim = -1, largest = True, sorted = False).indices
-    top_winner = repeat(top_winner, '... -> ... g', g = gene_length)
-    parents = participants.gather(1, top_winner).squeeze(1)
+    parents = get_at('p [t] g, p 1 -> p g', participants, top_winner)
 
     # cross over all chosen drones with the queen
 

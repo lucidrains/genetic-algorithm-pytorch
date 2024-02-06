@@ -11,6 +11,7 @@ https://www.researchgate.net/publication/290131255_Queen-bee_and_Mutant-bee_Evol
 
 import torch
 from einops import repeat
+from einx import get_at
 
 # constants
 
@@ -89,8 +90,7 @@ while True:
     contender_ids = torch.randn((POP_SIZE - 1, POP_SIZE - 1)).argsort(dim = -1)[..., :NUM_TOURNAMENT_PARTICIPANTS]
     participants, tournaments = pool[contender_ids], fitnesses[contender_ids]
     top_winner = tournaments.topk(1, dim = -1, largest = True, sorted = False).indices
-    top_winner = repeat(top_winner, '... -> ... g', g = gene_length)
-    parents = participants.gather(1, top_winner).squeeze(1)
+    parents = get_at('... [t] g, ... 1 -> ... g', participants, top_winner)
 
     # potential parents with queen is strongly mutated ("Mutant Bee")
 
