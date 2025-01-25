@@ -16,9 +16,13 @@ MUTATION_RATE = 0.04
 FRAC_FITTEST_SURVIVE = 0.25
 FRAC_TOURNAMENT = 0.25
 ELITE_FRAC = 0.05
-NUM_PARENTS = 4    # 4 parents
 
-assert NUM_PARENTS >= 2
+NUM_PARENTS = 4         # 4 parents
+NUM_WORST_PARENTS = 1   # allow for non-fit individuals to breed for diversity reasons, in same vein as the queenbee mating strategy - todo, select based on the uniform fitness conclusions from Marcus Hutter
+
+TOTAL_PARENTS = NUM_PARENTS + NUM_WORST_PARENTS
+
+assert TOTAL_PARENTS >= 2
 
 # encode and decode functions
 
@@ -82,15 +86,22 @@ while True:
 
     contender_ids = torch.randn((num_children, num_repro_and_mutate)).argsort(dim = -1)[..., :num_tournament_contenders]
     participants, tournaments = pool[contender_ids], fitnesses[contender_ids]
-    top_winners = tournaments.topk(NUM_PARENTS, dim = -1, largest = True, sorted = False).indices
-    parents = get_at('p [t] g, p w -> p w g', participants, top_winners)
+
+    top_individuals = tournaments.topk(NUM_PARENTS, dim = -1, largest = True, sorted = False).indices
+    worst_individuals = tournaments.topk(NUM_WORST_PARENTS, dim = -1, largest = False, sorted = False).indices
+
+    parents = get_at('p [t] g, p w -> p w g', participants, top_individuals)
+
+    if NUM_WORST_PARENTS > 0:
+        worst_parents = get_at('p [t] g, p w -> p w g', participants, worst_individuals)
+        parents = torch.cat((parents, worst_parents), dim = 1)
 
     # crossover recombination of parents using uniform crossover, and allowing for any number of parents. there are no limits insilico
 
     pop, genome_length = parents.shape[0], parents.shape[-1]
 
-    genome_assignments_from_parents = torch.randint(0, NUM_PARENTS, (pop, genome_length))
-    parent_ids = torch.arange(NUM_PARENTS)
+    genome_assignments_from_parents = torch.randint(0, TOTAL_PARENTS, (pop, genome_length))
+    parent_ids = torch.arange(TOTAL_PARENTS)
     genome_selection = equal('p g, w -> p w g', genome_assignments_from_parents, parent_ids)
 
     children = (genome_selection * parents).sum(dim = 1).long() # randomly select codes from the parents
