@@ -5,7 +5,9 @@ todo (trace back to original paper and link / cite)
 """
 
 import torch
+from torch import cat
 from einx import get_at
+from einops import rearrange
 
 # constants
 
@@ -18,9 +20,12 @@ FRAC_FITTEST_SURVIVE = 0.25
 FRAC_TOURNAMENT = 0.25
 ELITE_FRAC = 0.05
 
-MIGRATE_EVERY = 100
+MIGRATE_EVERY = 50
 FRAC_MIGRATE = 0.1
 NUM_MIGRANTS = int(POP_SIZE * FRAC_MIGRATE)
+
+ISLAND_RESET_EVERY = 100
+NUM_ISLANDS_RESET = 1
 
 DISPLAY_TOP_ISLAND_POP = 10 # number of top individuals per island to display
 
@@ -61,12 +66,15 @@ generation = 1
 
 islands = torch.randint(0, 255, (ISLANDS, POP_SIZE, gene_length))
 
+def fitness_fn(islands, target):
+    return 1. / (islands - target).pow(2).sum(dim = -1)
+
 while True:
     print(f"\n\ngeneration {generation}\n")
 
     # sort population by fitness
 
-    island_fitnesses = 1. / torch.square(islands - target_gene).sum(dim = -1)
+    island_fitnesses = fitness_fn(islands, target_gene)
 
     indices = island_fitnesses.sort(descending = True, dim = -1).indices
 
@@ -104,9 +112,9 @@ while True:
     # cross over recombination of parents
 
     parent1, parent2 = parents
-    children = torch.cat((parent1[..., :gene_midpoint], parent2[..., gene_midpoint:]), dim = -1)
+    children = cat((parent1[..., :gene_midpoint], parent2[..., gene_midpoint:]), dim = -1)
 
-    islands = torch.cat((islands, children), dim = 1)
+    islands = cat((islands, children), dim = 1)
 
     # mutate genes in population
 
@@ -118,12 +126,44 @@ while True:
     # migration
 
     if divisible_by(generation, MIGRATE_EVERY):
+        # migrants are randomly chosen for now
+
         island_rand_order = batch_randperm((ISLANDS, POP_SIZE))
         islands = get_at('i [p1] g, i p2 -> i p2 g', islands, island_rand_order)
 
         migrants, islands = islands[:, :NUM_MIGRANTS], islands[:, NUM_MIGRANTS:]
         migrants = torch.roll(migrants, 1, dims = 0)
 
-        islands = torch.cat((migrants, islands), dim = 1)
+        islands = cat((migrants, islands), dim = 1)
+
+    # island reset strategy
+    # purportedly effective in recent LLM inference time search papers - funsearch and mind-evolution
+
+    if divisible_by(generation, ISLAND_RESET_EVERY):
+        island_fitnesses = fitness_fn(islands, target_gene)
+
+        # just take average of island fitnesses for now
+
+        average_island_fitnesses = island_fitnesses.mean(dim = -1)
+        sort_indices = average_island_fitnesses.sort(dim = -1).indices
+
+        islands = islands[sort_indices]
+
+        islands = islands[NUM_ISLANDS_RESET:] # only keep the best performing islands
+
+        # repopulate the number of island resets with children from randomly selected individuals from other islands
+
+        all_individuals = rearrange(islands, 'i p g -> (i p) g')
+        num_individuals = all_individuals.shape[0]
+
+        # todo - ward against parent with self
+
+        parent_ids = torch.randint(0, num_individuals, (2, NUM_ISLANDS_RESET, POP_SIZE))
+
+        parents = get_at('[p1] g, parents i p2 -> parents i p2 g', all_individuals, parent_ids)
+        parent1, parent2 = parents
+
+        new_islands = cat((parent1[..., :gene_midpoint], parent2[..., gene_midpoint:]), dim = -1)
+        islands = cat((islands, new_islands))     
 
     generation += 1
