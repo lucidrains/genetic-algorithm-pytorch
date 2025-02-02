@@ -1,0 +1,129 @@
+"""
+Genetic Algorithms with Islands: periodic migration for diversity
+
+todo (trace back to original paper and link / cite)
+"""
+
+import torch
+from einx import get_at
+
+# constants
+
+GOAL = 'Attention is all you need'
+
+ISLANDS = 5
+POP_SIZE = 100
+MUTATION_RATE = 0.04
+FRAC_FITTEST_SURVIVE = 0.25
+FRAC_TOURNAMENT = 0.25
+ELITE_FRAC = 0.05
+
+MIGRATE_EVERY = 100
+FRAC_MIGRATE = 0.1
+NUM_MIGRANTS = int(POP_SIZE * FRAC_MIGRATE)
+
+DISPLAY_TOP_ISLAND_POP = 10 # number of top individuals per island to display
+
+# helpers
+
+def divisible_by(num, den):
+    return (num % den) == 0
+
+def batch_randperm(shape):
+    return torch.randn(shape).argsort(dim = -1)
+
+# encode and decode functions
+
+def encode(s):
+    return torch.tensor([ord(c) for c in s])
+
+def decode(t):
+    return ''.join([chr(i) for i in t.tolist()])
+
+# derived constants
+
+gene_length = len(GOAL)
+gene_midpoint = gene_length // 2
+target_gene = encode(GOAL)
+
+keep_fittest_len = int(POP_SIZE * FRAC_FITTEST_SURVIVE)
+num_elite = int(ELITE_FRAC * POP_SIZE)
+num_repro_and_mutate = keep_fittest_len - num_elite
+num_tournament_contenders = int(num_repro_and_mutate * FRAC_TOURNAMENT)
+num_children = POP_SIZE - keep_fittest_len
+num_mutate = MUTATION_RATE * gene_length
+
+assert num_tournament_contenders >= 2
+
+# genetic algorithm
+
+generation = 1
+
+islands = torch.randint(0, 255, (ISLANDS, POP_SIZE, gene_length))
+
+while True:
+    print(f"\n\ngeneration {generation}\n")
+
+    # sort population by fitness
+
+    island_fitnesses = 1. / torch.square(islands - target_gene).sum(dim = -1)
+
+    indices = island_fitnesses.sort(descending = True, dim = -1).indices
+
+    islands = get_at('i [p1] g , i p2 -> i p2 g', islands, indices)
+    island_fitnesses = get_at('i [p1], i p2 -> i p2', island_fitnesses, indices)
+
+    # keep the fittest
+
+    islands, island_fitnesses = islands[:, :keep_fittest_len], island_fitnesses[:, :keep_fittest_len]
+
+    # display every generation
+
+    for island_id, (pool, fitnesses) in enumerate(zip(islands, island_fitnesses)):
+        print(f'\nisland {island_id + 1}:\n')
+
+        for gene, fitness in zip(pool[:DISPLAY_TOP_ISLAND_POP], fitnesses[:DISPLAY_TOP_ISLAND_POP]):
+            print(f"{decode(gene)} ({fitness.item():.3f})")
+
+    # solved if any fitness is inf
+
+    if (island_fitnesses == float('inf')).any():
+        break
+
+    # deterministic tournament selection - let top 2 winners become parents
+
+    contender_ids = torch.randn((ISLANDS, num_children, num_repro_and_mutate)).argsort(dim = -1)[..., :num_tournament_contenders]
+
+    participants = get_at('i [p] g, i c t -> i c t g', islands, contender_ids)
+    tournament_results = get_at('i [f], i c tf -> i c tf', island_fitnesses, contender_ids)
+
+    top2_winners = tournament_results.topk(2, dim = -1, largest = True, sorted = False).indices
+
+    parents = get_at('i p [t] g, i p w -> w i p g', participants, top2_winners)
+
+    # cross over recombination of parents
+
+    parent1, parent2 = parents
+    children = torch.cat((parent1[..., :gene_midpoint], parent2[..., gene_midpoint:]), dim = -1)
+
+    islands = torch.cat((islands, children), dim = 1)
+
+    # mutate genes in population
+
+    mutate_mask = batch_randperm(islands.shape) < num_mutate
+    noise = torch.randint(0, 2, islands.shape) * 2 - 1
+    islands = torch.where(mutate_mask, islands + noise, islands)
+    islands.clamp_(0, 255)
+
+    # migration
+
+    if divisible_by(generation, MIGRATE_EVERY):
+        island_rand_order = batch_randperm((ISLANDS, POP_SIZE))
+        islands = get_at('i [p1] g, i p2 -> i p2 g', islands, island_rand_order)
+
+        migrants, islands = islands[:, :NUM_MIGRANTS], islands[:, NUM_MIGRANTS:]
+        migrants = torch.roll(migrants, 1, dims = 0)
+
+        islands = torch.cat((migrants, islands), dim = 1)
+
+    generation += 1
