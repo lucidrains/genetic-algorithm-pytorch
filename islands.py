@@ -1,7 +1,7 @@
 """
 Genetic Algorithms with Islands: periodic migration for diversity, and island resets for populations stuck in local minimum
 
-todo (trace back to original paper and link / cite)
+https://link.springer.com/chapter/10.1007/BFb0027170
 """
 
 import torch
