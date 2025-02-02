@@ -1,5 +1,5 @@
 """
-Genetic Algorithms with Islands: periodic migration for diversity
+Genetic Algorithms with Islands: periodic migration for diversity, and island resets for populations stuck in local minimum
 
 todo (trace back to original paper and link / cite)
 """
