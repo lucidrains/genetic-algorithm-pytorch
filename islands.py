@@ -26,7 +26,7 @@ NUM_MIGRANTS = int(POP_SIZE * FRAC_MIGRATE)
 
 ISLAND_RESET_EVERY = 100
 NUM_ISLANDS_RESET = 1
-ISLAND_RESET_TOURNAMENT_SIZE = 10
+ISLAND_RESET_TOURNAMENT_SIZE = 25
 
 DISPLAY_TOP_ISLAND_POP = 10 # number of top individuals per island to display
 
@@ -49,7 +49,6 @@ def decode(t):
 # derived constants
 
 gene_length = len(GOAL)
-gene_midpoint = gene_length // 2
 target_gene = encode(GOAL)
 
 keep_fittest_len = int(POP_SIZE * FRAC_FITTEST_SURVIVE)
@@ -113,7 +112,8 @@ while True:
     # cross over recombination of parents
 
     parent1, parent2 = parents
-    children = cat((parent1[..., :gene_midpoint], parent2[..., gene_midpoint:]), dim = -1)
+    uniform_crossover_mask = torch.randint(0, 2, parent1.shape).bool()
+    children = torch.where(uniform_crossover_mask, parent1, parent2)
 
     islands = cat((islands, children), dim = 1)
 
@@ -162,17 +162,19 @@ while True:
 
         # perform reliable tournament strategy for repopulating islands
 
-        tournament_participant_ids = batch_randperm((ISLAND_RESET_TOURNAMENT_SIZE, NUM_ISLANDS_RESET, POP_SIZE))
+        tournament_participant_ids = batch_randperm((NUM_ISLANDS_RESET, POP_SIZE, POP_SIZE))[..., :ISLAND_RESET_TOURNAMENT_SIZE]
 
-        participants = get_at('[global_pop] g, t i p -> t i p g', all_individuals, tournament_participant_ids)
-        participant_fitnesses = get_at('[global_pop], t i p -> t i p', all_fitnesses, tournament_participant_ids)
+        participants = get_at('[global_pop] g, i p t -> t i p g', all_individuals, tournament_participant_ids)
+        participant_fitnesses = get_at('[global_pop], i p t -> t i p', all_fitnesses, tournament_participant_ids)
 
         parent_indices = participant_fitnesses.topk(2, dim = 0, largest = True, sorted = False).indices
 
         parents = get_at('[p1] g, parents i p2 -> parents i p2 g', all_individuals, parent_indices)
         parent1, parent2 = parents
 
-        new_islands = cat((parent1[..., :gene_midpoint], parent2[..., gene_midpoint:]), dim = -1)
+        uniform_crossover_mask = torch.randint(0, 2, parent1.shape).bool()
+        new_islands = torch.where(uniform_crossover_mask, parent1, parent2)
+
         islands = cat((islands, new_islands))     
 
     generation += 1
