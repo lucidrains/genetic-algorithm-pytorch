@@ -26,6 +26,7 @@ NUM_MIGRANTS = int(POP_SIZE * FRAC_MIGRATE)
 
 ISLAND_RESET_EVERY = 100
 NUM_ISLANDS_RESET = 1
+ISLAND_RESET_TOURNAMENT_SIZE = 10
 
 DISPLAY_TOP_ISLAND_POP = 10 # number of top individuals per island to display
 
@@ -150,17 +151,25 @@ while True:
         islands = islands[sort_indices]
 
         islands = islands[NUM_ISLANDS_RESET:] # only keep the best performing islands
+        island_fitnesses = island_fitnesses[NUM_ISLANDS_RESET:]
 
         # repopulate the number of island resets with children from randomly selected individuals from other islands
 
         all_individuals = rearrange(islands, 'i p g -> (i p) g')
+        all_fitnesses = rearrange(island_fitnesses, 'i f -> (i f)')
+
         num_individuals = all_individuals.shape[0]
 
-        # todo - ward against parent with self
+        # perform reliable tournament strategy for repopulating islands
 
-        parent_ids = torch.randint(0, num_individuals, (2, NUM_ISLANDS_RESET, POP_SIZE))
+        tournament_participant_ids = batch_randperm((ISLAND_RESET_TOURNAMENT_SIZE, NUM_ISLANDS_RESET, POP_SIZE))
 
-        parents = get_at('[p1] g, parents i p2 -> parents i p2 g', all_individuals, parent_ids)
+        participants = get_at('[global_pop] g, t i p -> t i p g', all_individuals, tournament_participant_ids)
+        participant_fitnesses = get_at('[global_pop], t i p -> t i p', all_fitnesses, tournament_participant_ids)
+
+        parent_indices = participant_fitnesses.topk(2, dim = 0, largest = True, sorted = False).indices
+
+        parents = get_at('[p1] g, parents i p2 -> parents i p2 g', all_individuals, parent_indices)
         parent1, parent2 = parents
 
         new_islands = cat((parent1[..., :gene_midpoint], parent2[..., gene_midpoint:]), dim = -1)
