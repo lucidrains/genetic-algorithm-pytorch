@@ -4,6 +4,8 @@ Genetic Algorithm
 sidestepping biology, do N mutations and select for the one with most benefit
 
 also do a few children and allow only the top one to survive, this one more biologically plausible
+
+todo - compare to simply increasing population size or more tournaments + aggressive natural selection
 """
 
 import torch
