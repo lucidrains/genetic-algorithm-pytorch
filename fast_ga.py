@@ -1,21 +1,23 @@
 """
-Genetic Algorithm - formalized by John H. Holland in 1992, but has been talked about since 1960-70s
+Fast Genetic Algorithm - https://arxiv.org/abs/1703.03334
 
-https://www.researchgate.net/figure/Hollands-canonical-genetic-algorithm-Holland-1992_fig4_221174380
+faster convergence by drawing mutation length from power law distribution
 """
 
 import torch
-from einx import get_at
+from einx import get_at, less
 
 # constants
 
 GOAL = 'Attention is all you need'
 
 POP_SIZE = 100
-MUTATION_RATE = 0.05
 FRAC_FITTEST_SURVIVE = 0.25
 FRAC_TOURNAMENT = 0.25
 ELITE_FRAC = 0.05
+POWER_LAW_BETA = 1.1
+
+assert POWER_LAW_BETA > 1.
 
 # encode and decode functions
 
@@ -36,7 +38,12 @@ num_elite = int(ELITE_FRAC * POP_SIZE)
 num_repro_and_mutate = keep_fittest_len - num_elite
 num_tournament_contenders = int(num_repro_and_mutate * FRAC_TOURNAMENT)
 num_children = POP_SIZE - keep_fittest_len
-num_mutate = MUTATION_RATE * gene_length
+
+# power law cdf
+
+half_gene_length = gene_length // 2
+power_law_cdf = torch.linspace(1, half_gene_length, half_gene_length).pow(-POWER_LAW_BETA).cumsum(dim = -1)
+power_law_cdf = power_law_cdf / power_law_cdf[-1]
 
 assert num_tournament_contenders >= 2
 
@@ -91,7 +98,16 @@ while True:
 
     # mutate genes in population
 
-    mutate_mask = torch.randn(pool.shape).argsort(dim = -1) < num_mutate
+    # 1. sample from power law cdf
+
+    num_mutate = torch.searchsorted(power_law_cdf, torch.rand(pool.shape[0]))
+
+    # 2. get mutation mask from sampled mutation lengths
+
+    mutate_mask = less('i j, i', torch.randn(pool.shape).argsort(dim = -1), num_mutate)
+
+    # 3. mutate
+
     noise = torch.randint(0, 2, pool.shape) * 2 - 1
     pool = torch.where(mutate_mask, pool + noise, pool)
     pool.clamp_(0, 255)
