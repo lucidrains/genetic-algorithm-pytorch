@@ -14,7 +14,6 @@ GOAL = 'Attention is all you need'
 POP_SIZE = 100
 FRAC_FITTEST_SURVIVE = 0.25
 FRAC_TOURNAMENT = 0.25
-ELITE_FRAC = 0.05
 POWER_LAW_BETA = 1.1
 
 assert POWER_LAW_BETA > 1.
@@ -34,9 +33,7 @@ gene_midpoint = gene_length // 2
 target_gene = encode(GOAL)
 
 keep_fittest_len = int(POP_SIZE * FRAC_FITTEST_SURVIVE)
-num_elite = int(ELITE_FRAC * POP_SIZE)
-num_repro_and_mutate = keep_fittest_len - num_elite
-num_tournament_contenders = int(num_repro_and_mutate * FRAC_TOURNAMENT)
+num_tournament_contenders = int(keep_fittest_len * FRAC_TOURNAMENT)
 num_children = POP_SIZE - keep_fittest_len
 
 # power law cdf
@@ -77,14 +74,9 @@ while True:
     if (fitnesses == float('inf')).any():
         break
 
-    # elites can pass directly to next generation
-
-    elites, pool = pool[:num_elite], pool[num_elite:]
-    elites_fitnesses, fitnesses = fitnesses[:num_elite], fitnesses[num_elite:]
-
     # deterministic tournament selection - let top 2 winners become parents
 
-    contender_ids = torch.randn((num_children, num_repro_and_mutate)).argsort(dim = -1)[..., :num_tournament_contenders]
+    contender_ids = torch.randn((num_children, keep_fittest_len)).argsort(dim = -1)[..., :num_tournament_contenders]
     participants, tournaments = pool[contender_ids], fitnesses[contender_ids]
     top2_winners = tournaments.topk(2, dim = -1, largest = True, sorted = False).indices
     parents = get_at('p [t] g, p w -> p w g', participants, top2_winners)
@@ -111,9 +103,5 @@ while True:
     noise = torch.randint(0, 2, pool.shape) * 2 - 1
     pool = torch.where(mutate_mask, pool + noise, pool)
     pool.clamp_(0, 255)
-
-    # add back the elites
-
-    pool = torch.cat((elites, pool))
 
     generation += 1

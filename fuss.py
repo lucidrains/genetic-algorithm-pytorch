@@ -1,7 +1,9 @@
 """
-Genetic Algorithm - formalized by John H. Holland in 1992, but has been talked about since 1960-70s
+FUSS - Fitness Uniform Selection proposed by Marcus Hutter (who knew he was interested in genetic algorithms?)
 
-https://www.researchgate.net/figure/Hollands-canonical-genetic-algorithm-Holland-1992_fig4_221174380
+http://www.hutter1.net/ai/pfuss.htm
+
+He replaces classic tournament selection with selecting for individuals on a uniform fitness distribution, using fitness as a proxy for diversity. He found that this maintains population diversity and improves results for certain problems (however not all problems, and also has the flaw of not increasing diversity of the fitter individuals)
 """
 
 import torch
@@ -31,11 +33,8 @@ gene_midpoint = gene_length // 2
 target_gene = encode(GOAL)
 
 keep_fittest_len = int(POP_SIZE * FRAC_FITTEST_SURVIVE)
-num_tournament_contenders = int(keep_fittest_len * FRAC_TOURNAMENT)
 num_children = POP_SIZE - keep_fittest_len
 num_mutate = MUTATION_RATE * gene_length
-
-assert num_tournament_contenders >= 2
 
 # genetic algorithm
 
@@ -67,16 +66,24 @@ while True:
     if (fitnesses == float('inf')).any():
         break
 
-    # deterministic tournament selection - let top 2 winners become parents
+    # FUSS - fitness uniform selection
 
-    contender_ids = torch.randn((num_children, keep_fittest_len)).argsort(dim = -1)[..., :num_tournament_contenders]
-    participants, tournaments = pool[contender_ids], fitnesses[contender_ids]
-    top2_winners = tournaments.topk(2, dim = -1, largest = True, sorted = False).indices
-    parents = get_at('p [t] g, p w -> p w g', participants, top2_winners)
+    sorted_fitness, sorted_gene_indices = fitnesses.sort(dim = -1)
+
+    sorted_fitness = sorted_fitness - sorted_fitness[0]
+    sorted_fitness_cdf = sorted_fitness.cumsum(dim = -1)
+    sorted_fitness_cdf = sorted_fitness_cdf / sorted_fitness_cdf[-1]
+
+    rand = torch.rand((2, num_children))
+    rand_parent_sorted_gene_ids = torch.searchsorted(sorted_fitness_cdf, rand)
+
+    parent_ids = sorted_gene_indices[rand_parent_sorted_gene_ids - 1]
+
+    parents = get_at('[p] d, ... -> ... d', pool, parent_ids)
 
     # cross over recombination of parents
 
-    parent1, parent2 = parents.unbind(dim = 1)
+    parent1, parent2 = parents
     children = torch.cat((parent1[:, :gene_midpoint], parent2[:, gene_midpoint:]), dim = -1)
 
     pool = torch.cat((pool, children))
