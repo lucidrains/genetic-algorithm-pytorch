@@ -7,6 +7,7 @@ He replaces classic tournament selection with selecting for individuals on a uni
 """
 
 import torch
+from torch import stack
 from einx import get_at
 
 # constants
@@ -75,9 +76,24 @@ while True:
     sorted_fitness_cdf = sorted_fitness_cdf / sorted_fitness_cdf[-1]
 
     rand = torch.rand((2, num_children))
-    rand_parent_sorted_gene_ids = torch.searchsorted(sorted_fitness_cdf, rand)
+    rand_parent_sorted_gene_ids = torch.searchsorted(sorted_fitness_cdf, rand) - 1
 
-    parent_ids = sorted_gene_indices[rand_parent_sorted_gene_ids - 1]
+    # some logic for preventing individual being selected to be same parent
+
+    parent1_ids, parent2_ids = rand_parent_sorted_gene_ids
+
+    is_same_parent = parent1_ids == parent2_ids
+
+    is_highest_parent_id = parent2_ids == (keep_fittest_len - 1)
+    parent2_shift = torch.where(is_highest_parent_id, -1, 1)
+
+    parent2_ids = torch.where(is_same_parent, parent2_ids + parent2_shift, parent2_ids)
+
+    rand_parent_sorted_gene_ids = stack((parent1_ids, parent2_ids))
+
+    # get the parent ids and then their genes from the pool
+
+    parent_ids = sorted_gene_indices[rand_parent_sorted_gene_ids]
 
     parents = get_at('[p] d, ... -> ... d', pool, parent_ids)
 
