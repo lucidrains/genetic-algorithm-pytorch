@@ -40,7 +40,7 @@ target_gene = encode(GOAL)
 
 keep_fittest_len = int(POP_SIZE * FRAC_FITTEST_SURVIVE)
 num_elite = int(ELITE_FRAC * POP_SIZE)
-num_repro_and_mutate = keep_fittest_len - num_elite
+num_repro_and_mutate = keep_fittest_len
 num_tournament_contenders = int(num_repro_and_mutate * FRAC_TOURNAMENT)
 num_children = POP_SIZE - keep_fittest_len
 num_mutate = MUTATION_RATE * gene_length
@@ -77,11 +77,6 @@ while True:
     if (fitnesses == float('inf')).any():
         break
 
-    # elites can pass directly to next generation
-
-    elites, pool = pool[:num_elite], pool[num_elite:]
-    elites_fitnesses, fitnesses = fitnesses[:num_elite], fitnesses[num_elite:]
-
     # deterministic tournament selection - let top 2 winners become parents
 
     contender_ids = torch.randn((num_children, num_repro_and_mutate)).argsort(dim = -1)[..., :num_tournament_contenders]
@@ -107,6 +102,11 @@ while True:
     children = (genome_selection * parents).sum(dim = 1).long() # randomly select codes from the parents
 
     pool = torch.cat((pool, children))
+
+    # elites can pass directly to next generation
+
+    elites, pool = pool[:num_elite], pool[num_elite:]
+    elites_fitnesses, fitnesses = fitnesses[:num_elite], fitnesses[num_elite:]
 
     # mutate genes in population
 
