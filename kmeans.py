@@ -6,15 +6,6 @@ from einops import einsum, rearrange, repeat, reduce
 
 from sklearn.datasets import make_blobs
 
-points, _ = make_blobs(
-  n_samples = 500,
-  n_features = 16,
-  centers = 10,
-  cluster_std = 1.0
-)
-
-points = torch.from_numpy(points).float()
-
 # metric, using silhouette score
 
 def silhouette_score(clusters, points):
@@ -66,11 +57,11 @@ def kmeans(points, num_clusters):
 def genetic_kmeans(
     points,
     num_clusters,
-    pop_size = 50,
+    pop_size = 250,
     num_generations = 100,
     frac_fittest_selected = 0.25,
     frac_elites = 0.1,
-    mutation_strength = 0.05
+    mutation_strength = 0.1
 ):
     num_points, dim = points.shape
     keep_fittest = int(frac_fittest_selected * pop_size)
@@ -104,9 +95,9 @@ def genetic_kmeans(
 
         parent1, parent2 = pop_centers[tourn_winner_indices].unbind(dim = 1)
 
-        crossover_mask = torch.randint(0, 2, parent1.shape[:2]).bool()
+        crossover_mix = torch.randn_like(parent1).sigmoid()
 
-        child = einx.where('n c, n c d, n c d', crossover_mask, parent1, parent2)
+        child = parent1.lerp(parent2, crossover_mix)
 
         pop_centers = torch.cat((pop_centers, child))
 
@@ -133,11 +124,21 @@ avg_kmeans = 0.
 avg_genetic = 0.
 
 for _ in range(num_trials):
-    clusters = kmeans(points, 5)
+
+    points, _ = make_blobs(
+        n_samples = 500,
+        n_features = 16,
+        centers = 10,
+        cluster_std = 1.0
+    )
+
+    points = torch.from_numpy(points).float()
+
+    clusters = kmeans(points, 6)
 
     kmeans_score = silhouette_score(clusters, points)
 
-    clusters = genetic_kmeans(points, 5)
+    clusters = genetic_kmeans(points, 6)
 
     genetic_score = silhouette_score(clusters, points)
 
